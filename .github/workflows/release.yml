@@ -1,0 +1,116 @@
+name: Package and Release Module
+
+on:
+  push:
+    branches:
+      - main
+    paths-ignore:
+      - 'README.md'
+      - 'CHANGELOG.md'
+      - '.github/**'
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Read current version
+        id: read_version
+        run: |
+          VERSION=$(grep '^version=' module.prop | cut -d= -f2 | tr -d 'v')
+          MAJOR=$(echo $VERSION | cut -d. -f1)
+          MINOR=$(echo $VERSION | cut -d. -f2)
+          PATCH=$(echo $VERSION | cut -d. -f3)
+          echo "major=$MAJOR" >> $GITHUB_OUTPUT
+          echo "minor=$MINOR" >> $GITHUB_OUTPUT
+          echo "patch=$PATCH" >> $GITHUB_OUTPUT
+          echo "current=$VERSION" >> $GITHUB_OUTPUT
+
+      - name: Bump patch version
+        id: bump
+        run: |
+          MAJOR=${{ steps.read_version.outputs.major }}
+          MINOR=${{ steps.read_version.outputs.minor }}
+          PATCH=${{ steps.read_version.outputs.patch }}
+          NEW_PATCH=$((PATCH + 1))
+          NEW_VERSION="$MAJOR.$MINOR.$NEW_PATCH"
+          NEW_VERSION_CODE="${MAJOR}${MINOR}${NEW_PATCH}"
+          echo "new_version=$NEW_VERSION" >> $GITHUB_OUTPUT
+          echo "new_version_code=$NEW_VERSION_CODE" >> $GITHUB_OUTPUT
+
+      - name: Update module.prop
+        run: |
+          NEW_VERSION=${{ steps.bump.outputs.new_version }}
+          NEW_VERSION_CODE=${{ steps.bump.outputs.new_version_code }}
+          sed -i "s/^version=.*/version=v$NEW_VERSION/" module.prop
+          sed -i "s/^versionCode=.*/versionCode=$NEW_VERSION_CODE/" module.prop
+
+      - name: Update update.json
+        run: |
+          NEW_VERSION=${{ steps.bump.outputs.new_version }}
+          NEW_VERSION_CODE=${{ steps.bump.outputs.new_version_code }}
+          cat > update.json << EOF
+          {
+            "version": "v$NEW_VERSION",
+            "versionCode": $NEW_VERSION_CODE,
+            "zipUrl": "https://github.com/LyrinoxTechnologies/disable_safe_media_volume/releases/download/v$NEW_VERSION/disable_safe_media_volume-v$NEW_VERSION.zip",
+            "changelog": "https://raw.githubusercontent.com/LyrinoxTechnologies/disable_safe_media_volume/main/CHANGELOG.md"
+          }
+          EOF
+
+      - name: Package zip
+        run: |
+          NEW_VERSION=${{ steps.bump.outputs.new_version }}
+          mkdir -p dist
+          zip -r dist/disable_safe_media_volume-v$NEW_VERSION.zip \
+            module.prop \
+            customize.sh \
+            service.sh \
+            system.prop \
+            update.json \
+            META-INF/
+
+      - name: Commit version bump
+        run: |
+          NEW_VERSION=${{ steps.bump.outputs.new_version }}
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add module.prop update.json
+          git commit -m "chore: bump version to v$NEW_VERSION [skip ci]"
+          git push
+
+      - name: Tag release
+        run: |
+          NEW_VERSION=${{ steps.bump.outputs.new_version }}
+          git tag "v$NEW_VERSION"
+          git push origin "v$NEW_VERSION"
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v${{ steps.bump.outputs.new_version }}
+          name: v${{ steps.bump.outputs.new_version }}
+          body: |
+            ## Disable Safe Media Volume v${{ steps.bump.outputs.new_version }}
+
+            Supports Magisk, KernelSU, and APatch.
+
+            ### Installation
+            Download the zip below and flash via your root manager.
+
+            ### What this does
+            Disables EU safe media volume enforcement including CSD (Content Sound Dosimetry) introduced in Android 14+.
+
+            ---
+            See [CHANGELOG.md](https://github.com/LyrinoxTechnologies/disable_safe_media_volume/blob/main/CHANGELOG.md) for full history.
+          files: dist/disable_safe_media_volume-v${{ steps.bump.outputs.new_version }}.zip
+          draft: false
+          prerelease: false
