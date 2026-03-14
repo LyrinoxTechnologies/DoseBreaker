@@ -1,4 +1,6 @@
 audio.safemedia.bypass=true
 persist.audio.safemedia.bypass=true
+audio.safemedia.csd.force=false
+persist.audio.safemedia.csd.force=false
 audio.safe_media_volume_enabled=false
 persist.audio.safe_media_volume_enabled=false
