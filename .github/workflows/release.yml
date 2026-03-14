@@ -29,20 +29,22 @@ jobs:
           MAJOR=$(echo $VERSION | cut -d. -f1)
           MINOR=$(echo $VERSION | cut -d. -f2)
           PATCH=$(echo $VERSION | cut -d. -f3)
+          CURRENT_CODE=$(grep '^versionCode=' module.prop | cut -d= -f2)
           echo "major=$MAJOR" >> $GITHUB_OUTPUT
           echo "minor=$MINOR" >> $GITHUB_OUTPUT
           echo "patch=$PATCH" >> $GITHUB_OUTPUT
-          echo "current=$VERSION" >> $GITHUB_OUTPUT
+          echo "current_code=$CURRENT_CODE" >> $GITHUB_OUTPUT
 
-      - name: Bump patch version
+      - name: Bump version
         id: bump
         run: |
           MAJOR=${{ steps.read_version.outputs.major }}
           MINOR=${{ steps.read_version.outputs.minor }}
           PATCH=${{ steps.read_version.outputs.patch }}
+          CURRENT_CODE=${{ steps.read_version.outputs.current_code }}
           NEW_PATCH=$((PATCH + 1))
           NEW_VERSION="$MAJOR.$MINOR.$NEW_PATCH"
-          NEW_VERSION_CODE="${MAJOR}${MINOR}${NEW_PATCH}"
+          NEW_VERSION_CODE=$((CURRENT_CODE + 1))
           echo "new_version=$NEW_VERSION" >> $GITHUB_OUTPUT
           echo "new_version_code=$NEW_VERSION_CODE" >> $GITHUB_OUTPUT
 
