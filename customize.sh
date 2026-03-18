@@ -103,7 +103,7 @@ write_prop "af.resampler.quality" "8"
 # Audio offload - allows compressed audio bypass of the system mixer
 write_prop "audio.offload.disable" "false"
 write_prop "audio.offload.min.duration.secs" "15"
-write_prop "audio.offload.gapless.ennabled" "true"
+write_prop "audio.offload.gapless.enabled" "true"
 
 # Deep buffer for sustained playback quality
 write_prop "audio.deep_buffer.media" "true"
@@ -129,16 +129,15 @@ fi
 if [ "$HAS_V4A" = true ]; then
     ui_print "  Applying ViPER4Android optimizations..."
     write_prop "audio.effects.skiptranscode" "true"
-    write_prop "af.fast_track_multilier" "1"
+    write_prop "af.fast_track_multiplier" "1"
 fi
 
 ui_print "  Root manager: $ROOT_MGR"
 ui_print ""
 
-ui_print "  Overlay installed..."
-ui_print "  Patching audio props..."
-ui_print "  Disabling CSD enforcement..."
-ui_print "  Clearing safe volume state..."
+ui_print "  Patched audio props..."
+ui_print "  Disabled CSD enforcement..."
+ui_print "  Cleared safe volume state..."
 ui_print ""
 ui_print "  ✓ Done! Reboot to apply!"
 ui_print ""
