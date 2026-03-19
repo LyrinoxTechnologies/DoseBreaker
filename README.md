@@ -1,6 +1,8 @@
+# 📄 **Updated `README.md`**
+
 # Disable Safe Media Volume
 
-A root module for Android that disables the EU safe media volume enforcement, including the CSD (Content Sound Dosimetry) system introduced in Android 14.
+A root module for Android that disables EU safe media volume enforcement, including the CSD (Content Sound Dosimetry) system introduced in Android 14.
 
 Supports **Magisk**, **KernelSU**, and **APatch**.
 
@@ -10,38 +12,72 @@ Supports **Magisk**, **KernelSU**, and **APatch**.
 
 EU regulations require Android devices to automatically reduce headphone volume after a period of loud listening. Android implements this through two systems:
 
-**Legacy safe media volume** — an index-based system that limits volume above a threshold and re-enables after 20 hours of cumulative listening.
+**Legacy safe media volume** — an index-based system that limits volume above a threshold and re-enables after ~20 hours of cumulative listening.
 
-**CSD (Content Sound Dosimetry)** — a newer EU-mandated system introduced in Android 14 that measures actual sound exposure using MEL (Mean Energy Level) values. It accumulates dose across reboots via the settings database and triggers a volume reduction at 5x the safe dose threshold. This is the primary cause of the volume being automatically lowered on modern Android.
+**CSD (Content Sound Dosimetry)** — a newer system introduced in Android 14 that measures actual sound exposure using MEL (Mean Energy Level). It accumulates dose across reboots via the settings database and triggers volume reduction at 5× the safe dose threshold.
 
-There is no toggle to disable either system in the Android settings UI.
+There is no user-facing toggle to disable either system.
 
 ---
 
 ## What This Module Does
 
-Targets the enforcement at every layer it can reach from userspace:
+This module targets safe volume enforcement at multiple layers and continuously counteracts it at runtime:
 
-- Detects your audio HAL type (AIDL or HIDL) and applies appropriate audio quality props
-- Detects JamesDSP or ViPER4Android and applies compatibility props to prevent them from agitating the CSD/SoundDose system
-- Calls `disableSafeMediaVolume()` and `disableCsd()` directly via binder at boot
-- Clears persisted CSD dose records from the settings database on every boot
-- Resets the runtime CSD accumulator to zero on every boot
-- Runs a maintenance loop every 5 minutes to reset the CSD accumulator and dose records, counteracting the vendor audio HAL service that periodically re-enables CSD
+### Core enforcement bypass
+- Calls `disableSafeMediaVolume()` via binder (best effort)
+- Resets CSD (SoundDose) accumulator at runtime
+- Clears persisted CSD dose records on every boot and continuously during runtime
+- Forces safe volume state to disabled via settings database
+
+### Persistent runtime enforcement
+- Runs a background daemon (`service.sh`)
+- Continuously reapplies CSD resets and settings overrides
+- Uses an adaptive loop (fast at boot, lower overhead later)
+- Prevents vendor services from re-enabling enforcement
+
+### Adaptive audio system handling
+- Detects audio HAL type:
+  - AIDL
+  - Vendor HIDL (Qualcomm and others)
+  - Generic fallback
+- Detects audio mods:
+  - JamesDSP
+  - ViPER4Android
+- Applies compatibility tweaks to prevent conflicts with DSP chains
+
+### Smart audio pipeline tuning
+- Dynamically configures resampler quality:
+  - Safe mode (`quality=4`) for universal compatibility
+  - High-quality dynamic mode (`quality=7`) when supported
+- Applies advanced PSD resampler tuning only on supported devices
+- Avoids unsafe values that can crash `audioserver`
 
 ---
 
 ## Why a Maintenance Loop?
 
-The CSD enforcement involves a vendor HAL service in `/vendor/` that periodically checks whether CSD is enabled and re-enables it if not. Because `/vendor/` is write-protected and no universal hook exists to patch it without additional dependencies like LSPosed, the module instead resets the CSD state on a 5-minute interval.
+Modern Android offloads parts of audio policy enforcement to vendor services in `/vendor/`.
 
-The CSD accumulator ticks up at approximately 0.01x per second of high-volume listening, with a warning at 1.0x and forced volume reduction at 5.0x (~8 minutes of continuous high-volume listening). The 5-minute reset interval keeps the accumulator well below either threshold under normal use.
+These services:
+- Periodically re-enable CSD
+- Recalculate exposure dose
+- Override userland changes
+
+Because `/vendor/` is read-only and device-specific, the module uses a **persistent enforcement loop** instead:
+
+- Early boot: aggressive enforcement (every ~30 seconds)
+- Steady state: reduced overhead (~2 minutes)
+- Periodically reapplies audio configuration to counter system overrides
+
+This keeps the CSD accumulator effectively pinned near zero under normal use.
 
 ---
 
 ## Requirements
 
-- Android 12+ (tested on Android 16 / LineageOS 23)
+- Android 12+
+- Tested on Android 16 (LineageOS 23)
 - One of the following:
   - [Magisk](https://github.com/topjohnwu/Magisk) v20.4+
   - [KernelSU](https://github.com/tiann/KernelSU)
@@ -51,7 +87,8 @@ The CSD accumulator ticks up at approximately 0.01x per second of high-volume li
 
 ## Installation
 
-1. Download the latest zip from [Releases](https://github.com/LyrinoxTechnologies/disable_safe_media_volume/releases/latest)
+1. Download the latest zip from  
+   https://github.com/LyrinoxTechnologies/disable_safe_media_volume/releases/latest
 2. Open Magisk / KernelSU / APatch
 3. Go to Modules → Install from storage
 4. Select the downloaded zip
@@ -61,28 +98,32 @@ The CSD accumulator ticks up at approximately 0.01x per second of high-volume li
 
 ## Debugging
 
-You can verify the module is working using these commands in a root shell:
+Run these in a root shell:
 
 ```bash
-# Check current CSD level
+# Current CSD level
 dumpsys audio | grep -a "mCurrentCsd"
 
-# See full CSD activity including attenuation logs
+# Full CSD / SoundDose logs
 dumpsys audio | grep -a "CSD"
 
-# Check SoundDose accumulator percentage
+# SoundDose accumulator
 dumpsys audio | grep -a "doser"
-```
+````
 
-You can also check the module log at `/data/adb/modules/disable_safe_media_volume/log.txt`.
+Module log:
+
+```
+/data/adb/modules/disable_safe_media_volume/log.txt
+```
 
 ---
 
 ## Tested On
 
-| Device | OS | Root |
-|---|---|---|
-| Pixel 8 (shiba) | LineageOS 23 (Android 16) | APatch 11142 |
+| Device          | OS                        | Root   |
+| --------------- | ------------------------- | ------ |
+| Pixel 8 (shiba) | LineageOS 23 (Android 16) | APatch |
 
 If you've tested on other devices, open an issue or PR to expand this table.
 
@@ -90,8 +131,12 @@ If you've tested on other devices, open an issue or PR to expand this table.
 
 ## Known Limitations
 
-- HIDL devices are theoretically supported but untested — feedback welcome
-- The module cannot patch `/vendor/` directly, so the maintenance loop approach is used instead of a one-time disable
+* Binder transaction IDs are not stable across all devices
+
+  * Treated as best-effort only
+* Some OEMs heavily modify audio frameworks, which may require additional adaptation
+* The module cannot patch `/vendor/`, so continuous enforcement is required
+* Advanced resampler tuning is only applied when supported to avoid instability
 
 ---
 
@@ -99,32 +144,39 @@ If you've tested on other devices, open an issue or PR to expand this table.
 
 Format: `vMAJOR.MINOR.PATCH`
 
-Major versions mark significant rewrites or architectural changes.
-Minor versions mark new features.
-Patch versions mark fixes and small improvements.
+* **Major** → architectural changes (e.g. v2 → v3 runtime enforcement)
+* **Minor** → new features / detection improvements
+* **Patch** → fixes, stability improvements
 
 ---
 
 ## Contributing
 
-Issues and PRs welcome. If you find a device where the module doesn't work, open an issue with your device, Android version, and root manager.
+Issues and PRs are welcome.
+
+If something doesn’t work:
+
+* Include device model
+* Android version
+* Root manager
+* Logs (`log.txt`)
 
 ---
 
 ## Support Lyrinox Technologies
 
-If this module helped you, consider sponsoring us on GitHub so we can continue building and maintaining free tools like this.
+If this module helped you, consider sponsoring:
 
-**[github.com/sponsors/LyrinoxTechnologies](https://github.com/sponsors/LyrinoxTechnologies)**
+[https://github.com/sponsors/LyrinoxTechnologies](https://github.com/sponsors/LyrinoxTechnologies)
 
 ---
 
 ## License
 
-This project is licensed under the GNU General Public License v3.0 — see [LICENSE](LICENSE) for details.
+GNU GPL v3.0 — see [LICENSE](LICENSE)
 
-In short: you are free to use, modify, and distribute this module, but any derivative works must also be released under GPLv3 and remain open source.
+You are free to use, modify, and distribute this module, but derivative works must remain open source under GPLv3.
 
 ---
 
-*Built and maintained by [Vetheon](https://github.com/LyrinoxTechnologies) @ Lyrinox Technologies*
+*Built and maintained by Vetheon @ Lyrinox Technologies*
