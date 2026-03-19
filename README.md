@@ -86,7 +86,7 @@ This keeps the CSD accumulator effectively pinned near zero under normal use.
 ## Installation
 
 1. Download the latest zip from  
-   https://github.com/LyrinoxTechnologies/disable_safe_media_volume/releases/latest
+   https://github.com/LyrinoxTechnologies/dosebreaker/releases/latest
 2. Open Magisk / KernelSU / APatch
 3. Go to Modules → Install from storage
 4. Select the downloaded zip
