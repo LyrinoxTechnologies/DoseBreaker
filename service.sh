@@ -4,9 +4,6 @@ MODPATH=${0%/*}
 LOGFILE="$MODPATH/log.txt"
 PIDFILE="$MODPATH/service.pid"
 
-exec 2>>"$LOGFILE"
-set -x
-
 # -----------------------------
 # Logging
 # -----------------------------
@@ -55,34 +52,11 @@ done
 log "System fully ready"
 
 # -----------------------------
-# Apply Audio Props (base)
-# -----------------------------
-if [ -f "$MODPATH/audio_props.sh" ]; then
-    log "Applying base audio props..."
-    sh "$MODPATH/audio_props.sh"
-    log "Base props applied"
-else
-    log "No audio_props.sh found"
-fi
-
-# -----------------------------
-# Safe Resampler Configuration
-# -----------------------------
-apply_resampler() {
-    log "Applying high-quality resampler (quality=7)"
-    setprop af.resampler.quality 7
-}
-
-# -----------------------------
 # CSD / Safe Volume Killer
 # -----------------------------
 disable_csd() {
-    # --- Primary: cmd audio (stable across Android versions) ---
-    # Zeros the EN 50332-3 dose accumulator directly in AudioService
     cmd audio set-sound-dose-value 0.0 >/dev/null 2>&1
     cmd audio reset-sound-dose-timeout >/dev/null 2>&1
-
-    # --- Legacy safe volume layer (belt-and-suspenders) ---
     settings put global audio_safe_volume_state 0 >/dev/null 2>&1
     settings put system safe_headset_volume_index 100 >/dev/null 2>&1
 }
@@ -90,19 +64,14 @@ disable_csd() {
 # -----------------------------
 # Initial Execution
 # -----------------------------
-log "Running initial configuration..."
-
-apply_resampler
+log "Running initial CSD reset..."
 disable_csd
-
 log "Initial setup complete"
 
 # -----------------------------
-# Enforcement Loop (adaptive)
+# Enforcement Loop
 # -----------------------------
-ITERATION=0
-
-log "Entering enforcement loop"
+log "Entering enforcement loop (interval: 300s)"
 
 while true; do
 
@@ -112,28 +81,11 @@ while true; do
         cleanup
     fi
 
-    ITERATION=$((ITERATION + 1))
-    log "Run #$ITERATION"
-
-    disable_csd
-
-    # Re-apply resampler occasionally (in case system overrides)
-    if [ $((ITERATION % 10)) -eq 0 ]; then
-        log "Re-applying resampler config"
-        apply_resampler
-    fi
-
-    # Adaptive timing:
-    # Early boot = aggressive
-    # Later = relaxed
-    if [ "$ITERATION" -lt 10 ]; then
-        SLEEP_TIME=30
-    else
-        SLEEP_TIME=120
-    fi
-
-    sleep "$SLEEP_TIME" &
+    sleep 300 &
     SLEEP_PID=$!
     wait $SLEEP_PID 2>/dev/null || true
+
+    log "Resetting CSD accumulator"
+    disable_csd
 
 done
