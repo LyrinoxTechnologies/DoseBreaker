@@ -1,7 +1,5 @@
 # DoseBreaker
 
-> NOTE: On the latest version of LineageOS, this does not reliably work. A fix will be published as soon as one can be found.
-
 A root module for Android that disables EU safe media volume enforcement, including the CSD (Content Sound Dosimetry) system introduced in Android 14.
 
 Supports **Magisk**, **KernelSU**, and **APatch**.
@@ -77,7 +75,7 @@ This keeps the CSD accumulator effectively pinned near zero under normal use.
 ## Requirements
 
 - Android 12+
-- Tested on Android 16 (LineageOS 23)
+- Tested on Android 16 (LineageOS 23.2)
 - One of the following:
   - [Magisk](https://github.com/topjohnwu/Magisk) v20.4+
   - [KernelSU](https://github.com/tiann/KernelSU)
@@ -123,7 +121,7 @@ Module log:
 
 | Device          | OS                        | Root   |
 | --------------- | ------------------------- | ------ |
-| Pixel 8 (shiba) | LineageOS 23 (Android 16) | APatch |
+| Pixel 8 (shiba) | LineageOS 23.2 (Android 16) | APatch |
 
 If you've tested on other devices, open an issue or PR to expand this table.
 
